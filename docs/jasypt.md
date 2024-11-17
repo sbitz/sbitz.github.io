@@ -43,9 +43,18 @@ According to the Jasypt FAQ,
 
 So this is not advice, but as long as your application doesn't bundle java, an application using Jasypt would likely fall under similar restrictions, since you'd likely be including the jasypt libraries (don't quote this, seek legal advice elsewhere).
 
-### What's the best place to place the Decryption password?
+### What's the best place to set the Encryption password?
 
-Jasypt documentation suggests setting an environment variable with the encryption password, starting the application, then un-setting the environment variable. This limits the time that the property could be read on the system.
+Jasypt documentation suggests two methods for passing the Encryption password to your app at runtime.
+
+1. If the app is a web application, require the password be
+   set during startup with some fancy servlets. I didn't read
+   this in too much detail because I don't want to go that route. 
+2. Temporarily set an environment variable just for startup
+   until Jasypt has read and decrypted the properties. 
+   1. Set an environment variable with the encryption password
+   2. Start the application
+   3. Un-set the environment variable. This limits the time that the property could be read on the system.
 
 #### What about in Docker?
 
@@ -57,7 +66,7 @@ by the script.
 ```bash
 # start_compose.sh
 echo "Enter the Encryption Password"
-read pw
+read -s pw
 
 # start docker with the password loaded in the environment and wait for healthy status
 docker compose up -e JASYPT_ENCRYPTION_PW=$pw -d --wait
@@ -65,20 +74,22 @@ docker compose up -e JASYPT_ENCRYPTION_PW=$pw -d --wait
 docker exec -e JASYPT_ENCRYPTION_PW= my-service
 ```
 
+The password is read (without displaying it, `-s`) and passed to the startup command, `docker compose up -d` which starts the services as `detached` (`-d`). Adding `--wait` ensures the service is up and healthy before we continue. This gives us confidence that the password has already been loaded and used to decrypt our app configuration.
+
+The `docker-compose.yml` file would look something like this, with a service that includes a `healthcheck` directive.
+
 ```yml
 services:
   my-service:
+    # name the service to un-set the encryption password later
     name=my-service
     ...
     healthcheck:
+      # do something to test your app is running
       test: ["CMD", "curl" ...]
       interval: 10s
       timeout: 5s
       retries: 3
-  cleanup-service
-    depends_on:
-      my-service:
-        condition: service_healthy
 ```
 
 
